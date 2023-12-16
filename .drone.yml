@@ -1,0 +1,41 @@
+kind: pipeline
+name: default
+services:
+  - name: mongoService
+    image: mongo:4
+steps:
+  - name: ping
+    image: mongo:4
+    depends_on:
+      - mongoService
+    commands:
+      - sleep 15
+      - mongo --host mongoService --eval "db.version()"
+  - name: run-test-cases
+    image: node
+    
+    when:
+      status:
+        - failure
+        - success
+    depends_on:
+      - mongoService
+    commands:
+      - sleep 15
+      - git clone https://${GIT_ACCESS_TOKEN}@github.com/${GIT_REPO}.git
+      - cp -r __tests__ ${PROJECT_FOLDER_NAME}
+      - cp parser.js ${PROJECT_FOLDER_NAME}
+      - cd ${PROJECT_FOLDER_NAME}
+      - npm install
+      - env PROJECT_FOLDER_NAME=${PROJECT_FOLDER_NAME} npm test
+  - name: result
+    image: node
+    when:
+      status:
+        - failure
+        - success
+    depends_on:
+      - run-test-cases
+    commands:
+      - cd ${PROJECT_FOLDER_NAME}
+      - node parser.js
